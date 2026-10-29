@@ -1,0 +1,22 @@
+{
+  "name": "Vela · Lectura guiada",
+  "short_name": "Vela",
+  "description": "Lector guiado que entrena tu atención: registra cuándo te da sueño o te distraes.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "es",
+  "background_color": "#0E1220",
+  "theme_color": "#0E1220",
+  "categories": ["books", "education", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    { "action": "./", "accept": { "application/pdf": [".pdf"], "application/epub+zip": [".epub"] } }
+  ]
+}

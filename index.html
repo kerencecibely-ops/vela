@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vela</title>
+<meta name="description" content="Lector guiado que entrena tu atención: registra cuándo te da sueño o te distraes.">
+<meta name="theme-color" content="#F1F2F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B0E15" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Vela">
+<link rel="preload" href="fonts/sora-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/literata-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"Sora";font-style:normal;font-weight:100 800;font-display:swap;src:url(fonts/sora-latin-wght-normal.woff2) format("woff2")}
+@font-face{font-family:"Literata";font-style:normal;font-weight:200 900;font-display:swap;src:url(fonts/literata-latin-wght-normal.woff2) format("woff2")}
+@font-face{font-family:"Literata";font-style:italic;font-weight:200 900;font-display:swap;src:url(fonts/literata-latin-wght-italic.woff2) format("woff2")}
+/* Layout: una columna. Inicio = tarjeta nocturna con la vela + estantería; Estadísticas en pestaña; lector a pantalla completa con dock flotante. Intro de 3 pasos sobre fondo nocturno. */
+:root{
+  --bg:#F1F2F6; --surface:#FFFFFF; --surface-2:#F7F8FA; --ink:#12161F; --muted:#666E7E; --faint:#ADB3BF; --line:#E3E6EC;
+  --accent:#F29A1F; --accent-ink:#985600; --accent-soft:#FDEBD0; --on-accent:#1E1302;
+  --sleep:#5B5FD6; --sleep-soft:#E7E8FC; --distract:#DB5148; --distract-soft:#FCE5E3;
+  --night:#0E1220; --night-2:#1A2036; --night-ink:#F4F1EA; --night-muted:#9CA3B8;
+  --glass:rgba(255,255,255,.82); --shadow:0 12px 32px rgba(18,22,31,.10);
+  --f-ui:"Sora",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-read:"Literata",Georgia,"Times New Roman",serif;
+  --read-size:1.2rem;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0B0E15; --surface:#151A24; --surface-2:#1B212D; --ink:#E9EBEF; --muted:#959CAA; --faint:#545B68; --line:#252B37;
+  --accent:#F6A83E; --accent-ink:#F6A83E; --accent-soft:#3A2911; --on-accent:#1E1302;
+  --sleep:#9094F5; --sleep-soft:#25274D; --distract:#F27D72; --distract-soft:#45201C;
+  --glass:rgba(21,26,36,.82); --shadow:0 12px 32px rgba(0,0,0,.45); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B0E15; --surface:#151A24; --surface-2:#1B212D; --ink:#E9EBEF; --muted:#959CAA; --faint:#545B68; --line:#252B37;
+  --accent:#F6A83E; --accent-ink:#F6A83E; --accent-soft:#3A2911; --on-accent:#1E1302;
+  --sleep:#9094F5; --sleep-soft:#25274D; --distract:#F27D72; --distract-soft:#45201C;
+  --glass:rgba(21,26,36,.82); --shadow:0 12px 32px rgba(0,0,0,.45); color-scheme:dark}
+
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;-webkit-text-size-adjust:100%}
+img{max-width:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance}
+.wrap{max-width:36rem;margin:0 auto}
+svg{display:block}
+
+/* ---------- Vela (ilustración) ---------- */
+.candle{position:relative;width:26px;height:74px;flex:none}
+.candle .glow{position:absolute;bottom:22px;left:50%;width:150px;height:150px;margin-left:-75px;border-radius:50%;background:radial-gradient(circle,rgba(255,168,58,.38),rgba(255,168,58,0) 65%);animation:glow 2.8s ease-in-out infinite}
+.candle .wax{position:absolute;bottom:0;left:0;width:26px;height:46px;border-radius:6px 6px 3px 3px;background:linear-gradient(90deg,#D9D2C4,#FBF8F2 45%,#CFC7B8)}
+.candle .wax::before{content:"";position:absolute;top:-3px;left:3px;right:3px;height:7px;border-radius:50%;background:#F3EEE5}
+.candle .wick{position:absolute;bottom:46px;left:12px;width:2px;height:7px;background:#3B3227;border-radius:1px}
+.candle .fl{position:absolute;bottom:50px;left:50%;width:15px;height:26px;margin-left:-7.5px;border-radius:50%/60% 60% 40% 40%;
+  background:radial-gradient(ellipse at 50% 78%,#FFF8E1 0 18%,#FFC550 42%,#F2891B 72%,rgba(242,137,27,0) 74%);transform-origin:50% 92%;animation:flick 2.8s ease-in-out infinite}
+@keyframes flick{0%,100%{transform:scale(1) rotate(-3deg)}30%{transform:scale(.94,1.06) rotate(2deg)}60%{transform:scale(1.04,.92) rotate(-1deg)}}
+@keyframes glow{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+
+/* ---------- Inicio ---------- */
+.top{display:flex;align-items:center;justify-content:space-between;padding-block:20px 14px;gap:12px}
+.brand{font-weight:700;font-size:1.35rem;letter-spacing:-.03em}
+.brand b{color:var(--accent)}
+.tabs{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:3px}
+.tabs button{border:0;background:none;padding:7px 14px;border-radius:99px;font-size:.84rem;font-weight:500;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+
+.hero{position:relative;overflow:hidden;border-radius:26px;background:radial-gradient(120% 90% at 85% 100%,var(--night-2),var(--night) 70%);color:var(--night-ink);
+  padding:22px 22px 20px;display:grid;grid-template-columns:1fr auto;gap:8px 18px;align-items:end;min-height:190px}
+.hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(1px 1px at 12% 22%,rgba(255,255,255,.55),transparent),radial-gradient(1px 1px at 32% 12%,rgba(255,255,255,.4),transparent),radial-gradient(1.5px 1.5px at 58% 28%,rgba(255,255,255,.35),transparent),radial-gradient(1px 1px at 22% 58%,rgba(255,255,255,.3),transparent),radial-gradient(1px 1px at 46% 40%,rgba(255,255,255,.25),transparent);pointer-events:none}
+.hero-txt{position:relative;z-index:1;display:grid;gap:4px;align-self:start;min-width:0}
+.hero-txt .hi{font-size:.8rem;color:var(--night-muted)}
+.hero-txt h1{font-family:var(--f-read);font-weight:400;font-size:1.65rem;line-height:1.2;letter-spacing:-.01em}
+.hero-txt h1 i{color:#FFC157}
+.hero .candle{position:relative;z-index:1;grid-row:span 2;align-self:center;margin-right:10px;transform:scale(1.15)}
+.hero-stats{position:relative;z-index:1;display:flex;gap:18px;font-variant-numeric:tabular-nums}
+.hero-stats div{display:grid}
+.hero-stats b{font-size:1.15rem}
+.hero-stats span{font-size:.68rem;color:var(--night-muted);text-transform:uppercase;letter-spacing:.08em}
+.hero .go{position:relative;z-index:1;grid-column:1/-1;margin-top:10px;background:#F6A83E;color:#1E1302;justify-content:space-between}
+.hero .go small{font-weight:500;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;padding:12px 18px;font-weight:600;font-size:.92rem;min-height:48px}
+.btn.primary{background:var(--accent);color:var(--on-accent)}
+.btn.ghost{background:var(--surface);border:1px solid var(--line)}
+.btn.text{background:none;color:var(--muted);padding-inline:8px;min-height:36px;font-weight:500;font-size:.82rem}
+#file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+.sec-h{display:flex;align-items:center;justify-content:space-between;margin:26px 0 12px}
+.sec-h h2{font-size:1rem}
+.add{min-height:38px;padding:8px 14px;border-radius:99px;font-size:.82rem}
+.books{display:grid;gap:10px}
+.book{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:14px;display:flex;gap:14px;align-items:center;text-align:left;width:100%}
+.cover{flex:none;width:50px;height:68px;border-radius:5px 9px 9px 5px;display:grid;place-items:center;font-family:var(--f-read);font-weight:600;font-size:1.4rem;color:#fff;position:relative;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.cover::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:rgba(0,0,0,.18)}
+.book-meta{min-width:0;flex:1;display:grid;gap:6px}
+.book-meta h3{font-family:var(--f-read);font-weight:600;font-size:1.05rem;line-height:1.25;overflow-wrap:anywhere}
+.book-meta p{margin:0;color:var(--muted);font-size:.78rem}
+.badge{font-family:var(--f-ui);font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-soft);border-radius:99px;padding:2px 7px;margin-left:6px;vertical-align:middle}
+.pbar{height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.book-side{display:grid;justify-items:end;gap:4px}
+.book-side .pc{font-weight:700;font-variant-numeric:tabular-nums;font-size:.9rem}
+.del{border:0;background:none;color:var(--faint);font-size:.75rem;padding:4px 0}
+.del[data-armed]{color:var(--distract);font-weight:600}
+.foot{display:flex;flex-direction:column;align-items:center;gap:6px;padding-block:22px 40px}
+
+/* ---------- Estadísticas ---------- */
+.stats{display:grid;gap:12px;padding-bottom:40px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:14px;display:grid;gap:4px;min-width:0}
+.tile .k{font-size:.72rem;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:6px}
+.tile .v{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.tile .s{font-size:.7rem;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:16px;display:grid;gap:12px;min-width:0}
+.card h3{font-size:.95rem}
+.card .sub{color:var(--muted);font-size:.78rem;margin:-8px 0 0}
+.chart{width:100%;height:auto;overflow:visible}
+.chart text{fill:var(--muted);font-size:10px;font-family:var(--f-ui)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.74rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.tl{display:grid;gap:10px}
+.tl-row{display:grid;grid-template-columns:4.4rem 1fr 3rem;align-items:center;gap:10px;font-size:.74rem;font-variant-numeric:tabular-nums}
+.tl-row .d{color:var(--muted);line-height:1.25}
+.tl-row .t{text-align:right;font-weight:600}
+.track{position:relative;height:16px}
+.track .fill{position:absolute;left:0;top:5px;height:6px;border-radius:99px;background:var(--accent-soft)}
+.track .m{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%}
+.track .m.dz{width:10px;height:10px;background:var(--distract);border:2px solid var(--surface)}
+.track .m.sl{width:14px;height:14px;background:var(--sleep);border:2px solid var(--surface)}
+.bars{display:grid;gap:8px}
+.bar-row{display:grid;grid-template-columns:4.6rem 1fr 3.6rem;gap:10px;align-items:center;font-size:.8rem;font-variant-numeric:tabular-nums}
+.bar-row .b{height:10px;background:var(--line);border-radius:99px;overflow:hidden}
+.bar-row .b i{display:block;height:100%;background:var(--sleep);border-radius:99px}
+.bar-row .t{text-align:right;color:var(--muted)}
+.insight{border-radius:16px;padding:12px 14px;font-size:.86rem;background:var(--accent-soft);display:flex;gap:10px;align-items:flex-start}
+.insight::before{content:"";flex:none;width:8px;height:8px;margin-top:6px;border-radius:50%;background:var(--accent)}
+.empty{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:28px 20px;text-align:center;display:grid;gap:10px;justify-items:center}
+.empty p{margin:0;color:var(--muted);font-size:.86rem;max-width:32ch}
+
+/* ---------- Lector ---------- */
+.rbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line)}
+.rbar-in{max-width:36rem;margin:0 auto;display:flex;align-items:center;gap:10px}
+.ib{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none;font-weight:600;font-size:.85rem}
+.ib svg{width:18px;height:18px}
+.rtitle{flex:1;min-width:0}
+.rtitle b{display:block;font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtitle span{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.clock{display:flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums;font-weight:700;font-size:1rem;padding:9px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.clock i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.clock.on i{background:var(--accent);box-shadow:0 0 0 0 var(--accent);animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(246,168,62,.6)}100%{box-shadow:0 0 0 8px rgba(246,168,62,0)}}
+.rprog{height:3px;background:var(--line);max-width:36rem;margin:10px auto 0;border-radius:99px;overflow:hidden}
+.rprog i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+
+.text{max-width:36rem;margin:0 auto;padding:28px 4px 260px}
+.text p,.text h2{font-family:var(--f-read);margin:0 0 1.15em;font-size:var(--read-size);line-height:1.85;overflow-wrap:break-word}
+.text h2{font-size:calc(var(--read-size) * 1.3);font-weight:600;line-height:1.35}
+.text .past{color:var(--faint)}
+.text .ahead{color:var(--muted)}
+.text .live{color:var(--ink)}
+.text .live .w{border-radius:5px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background-color .12s,color .12s,box-shadow .12s}
+.text .live .w.done{color:var(--faint)}
+.text .live .w.cur{background:var(--accent);color:var(--on-accent);box-shadow:0 0 0 3px var(--accent)}
+.text .endnote{text-align:center;color:var(--muted);font-family:var(--f-ui);font-size:.88rem}
+
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:0 max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));pointer-events:none}
+.dock-in{max-width:30rem;margin:0 auto;background:var(--glass);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:28px;padding:12px;display:grid;gap:12px;pointer-events:auto;box-shadow:var(--shadow)}
+.speed{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted)}
+.speed input{flex:1;accent-color:var(--accent);min-width:0}
+.speed output{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600;min-width:6ch;text-align:center}
+.sp{width:32px;height:32px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;flex:none}
+.actions{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
+.ev{border:0;border-radius:20px;padding:10px 8px;min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:.78rem;font-weight:600;transition:transform .1s}
+.ev svg{width:20px;height:20px}
+.ev.dz{background:var(--distract-soft);color:var(--distract)}
+.ev.sl{background:var(--sleep-soft);color:var(--sleep)}
+.ev:active{transform:scale(.96)}
+.play{width:66px;height:66px;border-radius:50%;border:0;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;box-shadow:0 6px 18px rgba(242,154,31,.35);transition:transform .1s}
+.play:active{transform:scale(.95)}
+.play svg{width:26px;height:26px}
+
+/* ---------- Intro ---------- */
+.intro{position:fixed;inset:0;z-index:60;background:radial-gradient(120% 80% at 50% 110%,var(--night-2),var(--night) 65%);color:var(--night-ink);
+  display:flex;flex-direction:column;padding:calc(20px + env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(24px,env(safe-area-inset-left,0px))}
+.intro-skip{align-self:flex-end;background:none;border:0;color:var(--night-muted);font-size:.85rem;padding:8px}
+.slides{flex:1;position:relative;max-width:26rem;width:100%;margin:0 auto}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:18px;opacity:0;transform:translateX(24px);transition:opacity .45s,transform .45s;pointer-events:none}
+.slide.on{opacity:1;transform:none;pointer-events:auto}
+.slide.off{transform:translateX(-24px)}
+.slide h2{font-family:var(--f-read);font-weight:400;font-size:1.9rem;line-height:1.2}
+.slide h2 i{color:#FFC157}
+.slide p{margin:0;color:var(--night-muted);max-width:30ch;font-size:.95rem}
+.art{height:200px;display:grid;place-items:center;width:100%}
+.slide.on .candle .fl{animation:light 1.1s ease-out both,flick 2.8s 1.1s ease-in-out infinite}
+.slide.on .candle .glow{animation:glowin 1.4s ease-out both,glow 2.8s 1.4s ease-in-out infinite}
+@keyframes light{0%{transform:scale(0)}60%{transform:scale(1.2,1.1)}100%{transform:scale(1)}}
+@keyframes glowin{from{opacity:0;transform:scale(.4)}to{opacity:.85;transform:scale(1)}}
+.art .candle{transform:scale(1.7)}
+.demo{font-family:var(--f-read);font-size:1.15rem;line-height:1.9;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:18px 20px;text-align:left;max-width:22rem}
+.demo span{border-radius:5px;transition:background-color .15s,color .15s,box-shadow .15s}
+.demo .done{color:#6E7590}
+.demo .cur{background:#F6A83E;color:#1E1302;box-shadow:0 0 0 3px #F6A83E}
+.demo-speed{font-size:.75rem;color:var(--night-muted);margin-top:10px;font-family:var(--f-ui)}
+.pair{display:flex;gap:12px}
+.pair div{border-radius:20px;padding:14px 16px;min-width:118px;display:grid;justify-items:center;gap:6px;font-size:.82rem;font-weight:600}
+.pair svg{width:22px;height:22px}
+.pair .a{background:rgba(242,125,114,.16);color:#F7A39A}
+.pair .b{background:rgba(144,148,245,.18);color:#B5B8FA}
+.mini-tl{display:grid;gap:8px;width:100%;max-width:16rem;margin-top:6px}
+.mini-tl div{position:relative;height:6px;border-radius:99px;background:rgba(246,168,62,.3)}
+.mini-tl i{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%)}
+.intro-foot{display:grid;gap:18px;max-width:26rem;width:100%;margin:0 auto}
+.dots{display:flex;gap:8px;justify-content:center}
+.dots i{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.25);transition:width .3s,background-color .3s}
+.dots i.on{width:22px;background:#F6A83E}
+.intro .btn.primary{background:#F6A83E;color:#1E1302;width:100%}
+
+/* ---------- Hojas y avisos ---------- */
+.scrim{position:fixed;inset:0;background:rgba(8,10,14,.5);z-index:40;display:flex;align-items:flex-end;justify-content:center;animation:fade .2s}
+.sheet{background:var(--surface);width:100%;max-width:32rem;max-height:88vh;overflow:auto;border-radius:26px 26px 0 0;animation:up .25s ease-out;
+  padding:22px max(20px,env(safe-area-inset-left,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+@keyframes fade{from{opacity:0}}
+@keyframes up{from{transform:translateY(30px);opacity:.5}}
+@media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:26px}}
+.sheet p{margin:0;color:var(--muted)}
+.sheet-ico{width:46px;height:46px;border-radius:16px;display:grid;place-items:center;background:var(--sleep-soft);color:var(--sleep)}
+.sheet-ico svg{width:24px;height:24px}
+.big{font-size:2.6rem;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row .btn{flex:1 1 140px}
+.err{color:var(--distract)!important}
+.spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(84px + env(safe-area-inset-top,0px));z-index:50;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:.84rem;max-width:calc(100% - 32px);text-align:center;animation:fade .2s;box-shadow:var(--shadow)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="home" class="wrap">
+  <header class="top">
+    <div class="brand">Vela<b>.</b></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabBooks" aria-selected="true" type="button">Libros</button>
+      <button role="tab" id="tabStats" aria-selected="false" type="button">Estadísticas</button>
+    </div>
+  </header>
+
+  <section id="viewBooks">
+    <div class="hero" id="hero">
+      <div class="hero-txt"><span class="hi" id="hiTxt">Buenas noches</span><h1 id="heroH">Una página más,<br><i>sin cabecear.</i></h1></div>
+      <div class="candle" aria-hidden="true"><div class="glow"></div><div class="fl"></div><div class="wick"></div><div class="wax"></div></div>
+      <div class="hero-stats"><div><b id="hToday">0 min</b><span>Hoy</span></div><div><b id="hStreak">0</b><span>Días seguidos</span></div></div>
+      <button class="btn go" id="heroGo" type="button" hidden><span>Continuar leyendo</span><small id="heroBook"></small></button>
+    </div>
+    <div class="sec-h"><h2>Tus libros</h2><label class="btn ghost add" for="file">+ Subir PDF o EPUB</label></div>
+    <input type="file" id="file" accept=".pdf,.epub,application/pdf,application/epub+zip">
+    <div class="books" id="books"></div>
+    <div class="foot"><button class="btn ghost add" id="installBtn" type="button" hidden>Instalar Vela en este dispositivo</button><button class="btn text" id="showIntro" type="button">Ver la intro otra vez</button></div>
+  </section>
+
+  <section id="viewStats" hidden>
+    <div class="stats" id="stats"></div>
+  </section>
+</div>
+
+<div id="reader" hidden>
+  <div class="rbar">
+    <div class="rbar-in">
+      <button class="ib" id="rBack" type="button" aria-label="Guardar y salir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="rtitle"><b id="rBook"></b><span id="rPct"></span></div>
+      <button class="ib" id="rSize" type="button" aria-label="Cambiar tamaño de letra">Aa</button>
+      <div class="clock" id="rClock" aria-label="Tiempo leído"><i></i><span id="rTime">0:00</span></div>
+    </div>
+    <div class="rprog"><i id="rProg"></i></div>
+  </div>
+  <article class="text" id="text"></article>
+  <div class="dock">
+    <div class="dock-in">
+      <div class="speed">
+        <button class="sp" id="spDown" type="button" aria-label="Más lento">−</button>
+        <input type="range" id="wpm" min="100" max="600" step="10" value="220" aria-label="Velocidad de lectura">
+        <button class="sp" id="spUp" type="button" aria-label="Más rápido">+</button>
+        <output id="wpmOut" for="wpm">220 ppm</output>
+      </div>
+      <div class="actions">
+        <button class="ev dz" id="bDistract" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a4 4 0 0 1-2 7.5H7z"/><path d="M10 13h.01M14 13h.01"/></svg>
+          Me distraje
+        </button>
+        <button class="play" id="bPlay" type="button" aria-label="Iniciar lectura guiada">
+          <svg id="icoPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5z"/></svg>
+          <svg id="icoPause" viewBox="0 0 24 24" fill="currentColor" hidden><rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/></svg>
+        </button>
+        <button class="ev sl" id="bSleep" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+          Me dio sueño
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="intro" id="intro" hidden role="dialog" aria-modal="true" aria-label="Bienvenida a Vela">
+  <button class="intro-skip" id="iSkip" type="button">Saltar</button>
+  <div class="slides" id="slides">
+    <div class="slide">
+      <div class="art"><div class="candle" aria-hidden="true"><div class="glow"></div><div class="fl"></div><div class="wick"></div><div class="wax"></div></div></div>
+      <h2>Lee sin<br><i>quedarte dormido.</i></h2>
+      <p>Vela entrena tu atención para que leer deje de darte sueño, una sesión a la vez.</p>
+    </div>
+    <div class="slide">
+      <div class="art"><div><div class="demo" id="demo"></div><div class="demo-speed">Velocidad ajustable · 100 a 600 palabras por minuto</div></div></div>
+      <h2>Una marca te <i>guía.</i></h2>
+      <p>Sube tu PDF o EPUB, presiona play y sigue la marca con los ojos. Tú eliges el ritmo.</p>
+    </div>
+    <div class="slide">
+      <div class="art"><div style="display:grid;justify-items:center;gap:14px">
+        <div class="pair">
+          <div class="a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a4 4 0 0 1-2 7.5H7z"/><path d="M10 13h.01M14 13h.01"/></svg>Me distraje</div>
+          <div class="b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>Me dio sueño</div>
+        </div>
+        <div class="mini-tl"><div style="width:90%"><i style="left:35%;background:#F27D72"></i><i style="left:100%;background:#9094F5"></i></div><div style="width:70%"><i style="left:60%;background:#F27D72"></i></div><div style="width:100%"><i style="left:80%;background:#F27D72"></i></div></div>
+      </div></div>
+      <h2>Mide cuándo <i>te pierdes.</i></h2>
+      <p>Toca un botón cuando se te vaya la mente o te pesen los ojos. Tus estadísticas muestran si vas mejorando.</p>
+    </div>
+  </div>
+  <div class="intro-foot">
+    <div class="dots" id="dots"><i></i><i></i><i></i></div>
+    <button class="btn primary" id="iNext" type="button">Siguiente</button>
+  </div>
+</div>
+
+<div id="sheetHost"></div>
+
+<script>
+(function(){
+// Si la app se abre como archivo (file:// o content://) en vez de desde un servidor, las librerías locales no cargan: se usa el CDN.
+const SERVED=/^https?:$/.test(location.protocol);
+const CDN={pdf:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',worker:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',zip:'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'};
+const PDFJS=['lib/pdf.min.js',CDN.pdf];
+const PDFW=['lib/pdf.worker.min.js',CDN.worker];
+const JSZIP=['lib/jszip.min.js',CDN.zip];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const wc=t=>t.split(/\s+/).filter(Boolean).length;
+const pad=n=>String(n).padStart(2,'0');
+const nf=n=>Math.round(n).toLocaleString('es');
+const dkey=d=>{d=new Date(d);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fmt(ms){const s=Math.round(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'h '+pad(m)+'m':m+':'+pad(s%60)}
+function fmtMin(ms){const m=ms/60000;return m<10?m.toFixed(1).replace('.',',')+' min':Math.round(m)+' min'}
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+
+/* ---------- Datos ---------- */
+const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let settings=Object.assign({wpm:220,size:1.2,hideSample:false,seenIntro:false},LS.get('vela2.settings',{}));
+let sessions=LS.get('vela2.sessions',[]);
+if(!Array.isArray(sessions))sessions=[];
+sessions=sessions.filter(s=>s&&typeof s.dur==='number'&&Array.isArray(s.ev));
+const saveSettings=()=>LS.set('vela2.settings',settings);
+const saveSessions=()=>LS.set('vela2.sessions',sessions);
+
+let db=null,books=[];
+function openDB(){return new Promise(res=>{try{const r=indexedDB.open('vela2',1);r.onupgradeneeded=()=>r.result.createObjectStore('books',{keyPath:'id'});r.onsuccess=()=>{db=r.result;res()};r.onerror=()=>res();r.onblocked=()=>res()}catch(e){res()}})}
+function dbAll(){return new Promise(res=>{if(!db)return res([]);try{const q=db.transaction('books').objectStore('books').getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])}catch(e){res([])}})}
+function dbPut(b){if(!db)return;try{const c=Object.assign({},b);delete c._tw;db.transaction('books','readwrite').objectStore('books').put(c)}catch(e){}}
+function dbDel(id){if(!db)return;try{db.transaction('books','readwrite').objectStore('books').delete(id)}catch(e){}}
+
+function sampleBook(){
+  const raw=[
+    ['h','Antes de abrir el libro'],
+    ['p','Este es un texto de práctica para que veas cómo funciona Vela. Presiona el botón central y una marca va a recorrer las palabras a la velocidad que elijas. Tus ojos solo tienen que seguirla.'],
+    ['p','El sueño casi nunca viene del libro. Viene del lugar y de la hora. Si lees acostado, tu cuerpo entiende que es momento de dormir. Siéntate en una silla firme, enciende una buena luz y deja un vaso de agua cerca.'],
+    ['h','Cuando la mente se va'],
+    ['p','A veces sigues pasando los ojos por las líneas, pero estás pensando en otra cosa. Cuando lo notes, toca Me distraje. La lectura se detiene, Vela anota el momento y deja la marca al inicio de la frase. Respira y presiona play cuando estés listo.'],
+    ['p','Si sientes los ojos pesados, toca Me dio sueño. La lectura se detiene y queda registrado cuánto tiempo aguantaste. Con varios días de registros vas a ver si tu resistencia sube y a qué hora lees mejor.'],
+    ['h','Encuentra tu ritmo'],
+    ['p','Si la marca va demasiado lenta, tu mente se aburre y se escapa. Si va demasiado rápida, dejas de entender. Empieza cerca de doscientas palabras por minuto y sube de diez en diez hasta encontrar el punto donde te sientes despierto y siguiendo la historia.'],
+    ['p','Puedes tocar cualquier palabra para mover la marca hasta ahí. Cuando termines, regresa con la flecha de arriba y la sesión se guarda sola.']
+  ];
+  return {id:'muestra',title:'Texto de práctica',author:'Cómo usar Vela',sample:true,added:0,
+    paras:raw.map(([k,t])=>({t,h:k==='h'?1:0,w:wc(t)})),pos:{p:0,w:0}};
+}
+function totalWords(b){if(!b._tw)b._tw=b.paras.reduce((a,p)=>a+p.w,0);return b._tw}
+function wordsBefore(b,pos){let s=0;for(let k=0;k<pos.p&&k<b.paras.length;k++)s+=b.paras[k].w;return s+pos.w}
+function pct(b){const t=totalWords(b);return t?Math.min(100,wordsBefore(b,b.pos)/t*100):0}
+function hue(s){let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h}
+
+/* ---------- Inicio ---------- */
+function streak(){
+  const set=new Set(sessions.map(s=>dkey(s.ts)));
+  const d=new Date();if(!set.has(dkey(d)))d.setDate(d.getDate()-1);
+  let c=0;while(set.has(dkey(d))){c++;d.setDate(d.getDate()-1)}return c;
+}
+function renderHero(){
+  const h=new Date().getHours();
+  $('#hiTxt').textContent=h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches';
+  const today=sessions.filter(s=>dkey(s.ts)===dkey(Date.now())).reduce((a,s)=>a+s.dur,0);
+  $('#hToday').textContent=Math.round(today/60000)+' min';
+  const st=streak();$('#hStreak').textContent=st;
+  $('#heroH').innerHTML=today>0?'Ya encendiste<br><i>la vela de hoy.</i>':'Una página más,<br><i>sin cabecear.</i>';
+  const last=books.filter(b=>b.lastRead&&b.pos.p<b.paras.length).sort((a,b)=>b.lastRead-a.lastRead)[0];
+  $('#heroGo').hidden=!last;
+  if(last){$('#heroBook').textContent=last.title;$('#heroGo').onclick=()=>openReader(last)}
+}
+function renderBooks(){
+  renderHero();
+  const el=$('#books');
+  if(!books.length){el.innerHTML='<div class="empty"><b>Tu estantería está vacía</b><p>Sube un PDF o EPUB para empezar con la lectura guiada.</p></div>';return}
+  el.innerHTML=books.map(b=>{
+    const p=pct(b),done=b.pos.p>=b.paras.length,left=Math.max(0,totalWords(b)-wordsBefore(b,b.pos)),mins=Math.round(left/settings.wpm),hu=hue(b.title);
+    const leftTxt=done?'Terminado':'Faltan ~'+(mins>=60?Math.floor(mins/60)+' h '+pad(mins%60)+' min':Math.max(1,mins)+' min');
+    return '<div class="book" data-id="'+esc(b.id)+'" role="button" tabindex="0" aria-label="Leer '+esc(b.title)+'">'+
+      '<div class="cover" style="background:linear-gradient(150deg,hsl('+hu+' 55% 52%),hsl('+((hu+40)%360)+' 50% 32%))">'+esc((b.title.trim()[0]||'?').toUpperCase())+'</div>'+
+      '<div class="book-meta"><h3>'+esc(b.title)+(b.sample?'<span class="badge">Ejemplo</span>':'')+'</h3><p>'+esc(b.author||'Autor desconocido')+' · '+leftTxt+'</p><div class="pbar"><i style="width:'+p+'%"></i></div></div>'+
+      '<div class="book-side"><span class="pc">'+Math.floor(p)+'%</span><button class="del" type="button" data-del>Eliminar</button></div></div>';
+  }).join('');
+}
+function bookFromEl(el){const c=el.closest('.book');return c&&books.find(x=>x.id===c.dataset.id)}
+$('#books').addEventListener('click',e=>{
+  const b=bookFromEl(e.target);if(!b)return;
+  const del=e.target.closest('[data-del]');
+  if(del){
+    e.stopPropagation();
+    if(del.dataset.armed){books=books.filter(x=>x!==b);dbDel(b.id);if(b.sample){settings.hideSample=true;saveSettings()}renderBooks();toast('Libro eliminado')}
+    else{del.dataset.armed='1';del.textContent='¿Seguro?';setTimeout(()=>{if(del.isConnected){delete del.dataset.armed;del.textContent='Eliminar'}},3000)}
+    return;
+  }
+  if(b.pos.p>=b.paras.length)b.pos={p:0,w:0};
+  openReader(b);
+});
+$('#books').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('book')){e.preventDefault();e.target.click()}});
+function setTab(stats){
+  $('#tabBooks').setAttribute('aria-selected',String(!stats));$('#tabStats').setAttribute('aria-selected',String(stats));
+  $('#viewBooks').hidden=stats;$('#viewStats').hidden=!stats;if(stats)renderStats();else renderBooks();
+}
+$('#tabBooks').onclick=()=>setTab(false);
+$('#tabStats').onclick=()=>setTab(true);
+
+/* ---------- Estadísticas ---------- */
+function stretches(s){const pts=[0,...s.ev.map(e=>e.at),s.dur].sort((a,b)=>a-b),out=[];for(let i=1;i<pts.length;i++)if(pts[i]-pts[i-1]>500)out.push(pts[i]-pts[i-1]);return out}
+function renderStats(){
+  const el=$('#stats');
+  if(!sessions.length){el.innerHTML='<div class="empty"><b>Aún no hay registros</b><p>Cada vez que leas, aquí verás cuánto aguantas antes de que te dé sueño y cada cuánto se te va la mente.</p><button class="btn primary" type="button" id="goRead">Ir a leer</button></div>';$('#goRead').onclick=()=>setTab(false);return}
+  const sl=sessions.map(s=>s.ev.find(e=>e.t==='sleep')).filter(Boolean).map(e=>e.at);
+  const dzFirst=sessions.map(s=>s.ev.find(e=>e.t==='dz')).filter(Boolean).map(e=>e.at);
+  const allStretch=[].concat(...sessions.map(stretches));
+  const dzPer=avg(sessions.map(s=>s.ev.filter(e=>e.t==='dz').length));
+  const total=sessions.reduce((a,s)=>a+s.dur,0),words=sessions.reduce((a,s)=>a+(s.words||0),0);
+  let h='<div class="tiles">'+
+    tile('var(--sleep)','Hasta que te da sueño',sl.length?fmtMin(avg(sl)):'—',sl.length?'promedio de '+sl.length+' vez'+(sl.length>1?'es':''):'aún sin registros')+
+    tile('var(--accent)','Concentración seguida',fmtMin(avg(allStretch)),'antes de distraerte o parar')+
+    tile('var(--distract)','Distracciones',dzPer.toFixed(1).replace('.',','),'por sesión'+(dzFirst.length?' · la 1ª a los '+fmtMin(avg(dzFirst)):''))+
+    tile('var(--muted)','Tiempo leído',fmt(total),nf(words)+' palabras · '+sessions.length+' sesi'+(sessions.length>1?'ones':'ón'))+
+  '</div>';
+  const tip=insight(sl);if(tip)h+='<div class="insight">'+tip+'</div>';
+  if(sessions.length>=2)h+=lineChart();
+
+  const last=sessions.slice(-12).reverse(),max=Math.max(...last.map(s=>s.dur),60000);
+  h+='<div class="card"><h3>Últimas sesiones</h3><p class="sub">Cada barra es una sesión; los puntos marcan cuándo pasó cada cosa.</p>'+
+    '<div class="legend"><span><i class="dot" style="background:var(--distract)"></i>Me distraje</span><span><i class="dot" style="background:var(--sleep)"></i>Me dio sueño</span></div><div class="tl">'+
+    last.map(s=>{const d=new Date(s.ts);return '<div class="tl-row"><div class="d">'+d.toLocaleDateString('es',{day:'numeric',month:'short'})+'<br>'+d.toLocaleTimeString('es',{hour:'numeric',minute:'2-digit'})+'</div><div class="track" title="'+esc(s.book||'')+'"><div class="fill" style="width:'+(s.dur/max*100)+'%"></div>'+
+      s.ev.map(e=>'<i class="m '+(e.t==='sleep'?'sl':'dz')+'" style="left:'+Math.max(3,Math.min(97,e.at/max*100))+'%"></i>').join('')+'</div><div class="t">'+fmt(s.dur)+'</div></div>'}).join('')+'</div></div>';
+
+  const buckets=[['Mañana',5,12],['Tarde',12,18],['Noche',18,29]].map(([n,a,b])=>{
+    const ss=sessions.filter(s=>{let hr=new Date(s.ts).getHours();if(hr<5)hr+=24;return hr>=a&&hr<b});
+    return {n,c:ss.length,v:avg(ss.map(s=>{const e=s.ev.find(e=>e.t==='sleep');return e?e.at:s.dur}))};
+  }).filter(x=>x.c);
+  if(buckets.length>1){
+    const bm=Math.max(...buckets.map(x=>x.v),1);
+    h+='<div class="card"><h3>¿A qué hora aguantas más?</h3><p class="sub">Tiempo promedio leyendo antes del sueño o de parar.</p><div class="bars">'+
+      buckets.map(x=>'<div class="bar-row"><span>'+x.n+'</span><div class="b"><i style="width:'+(x.v/bm*100)+'%"></i></div><span class="t">'+fmtMin(x.v)+'</span></div>').join('')+'</div></div>';
+  }
+  h+='<button class="btn text" type="button" id="clearHist" style="justify-self:center">Borrar historial</button>';
+  el.innerHTML=h;
+  const cb=$('#clearHist');
+  cb.onclick=()=>{if(cb.dataset.armed){sessions=[];saveSessions();renderStats();toast('Historial borrado')}else{cb.dataset.armed='1';cb.textContent='Toca otra vez para borrar todo'}};
+}
+function tile(c,k,v,s){return '<div class="tile"><div class="k"><i class="dot" style="background:'+c+'"></i>'+k+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>'}
+function lineChart(){
+  const pts=sessions.slice(-14).map(s=>({v:avg(stretches(s))||s.dur,ts:s.ts}));
+  const W=320,H=150,L=34,R=10,T=12,B=24,iw=W-L-R,ih=H-T-B;
+  const maxMin=Math.max(1,Math.ceil(Math.max(...pts.map(p=>p.v))/60000));
+  const step=maxMin<=4?1:Math.ceil(maxMin/4);const top=step*Math.ceil(maxMin/step);
+  const x=i=>L+(pts.length===1?iw/2:i*iw/(pts.length-1)),y=v=>T+ih-(v/60000)/top*ih;
+  let grid='';for(let m=0;m<=top;m+=step)grid+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(m*60000)+'" y2="'+y(m*60000)+'" stroke="var(--line)" stroke-width="1"/><text x="'+(L-6)+'" y="'+(y(m*60000)+3.5)+'" text-anchor="end">'+m+'m</text>';
+  const line=pts.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1)).join(' ');
+  const area=line+' L'+x(pts.length-1).toFixed(1)+' '+(T+ih)+' L'+x(0).toFixed(1)+' '+(T+ih)+' Z';
+  const lp=pts[pts.length-1],fd=d=>new Date(d).toLocaleDateString('es',{day:'numeric',month:'short'});
+  return '<div class="card"><h3>Tu concentración, sesión por sesión</h3><p class="sub">Minutos seguidos que lees antes de distraerte o parar.</p>'+
+    '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Gráfica de concentración por sesión"><defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>'+
+    grid+'<path d="'+area+'" fill="url(#ga)"/><path d="'+line+'" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+
+    pts.map((p,i)=>'<circle cx="'+x(i)+'" cy="'+y(p.v)+'" r="'+(i===pts.length-1?5:2.5)+'" fill="'+(i===pts.length-1?'var(--accent)':'var(--surface)')+'" stroke="var(--accent)" stroke-width="2"/>').join('')+
+    '<text x="'+L+'" y="'+(H-6)+'">'+fd(pts[0].ts)+'</text><text x="'+(W-R)+'" y="'+(H-6)+'" text-anchor="end">'+fd(lp.ts)+'</text></svg></div>';
+}
+function insight(sl){
+  if(sessions.length>=6){
+    const a=sessions.slice(-3),b=sessions.slice(-6,-3);
+    const fa=avg([].concat(...a.map(stretches))),fb=avg([].concat(...b.map(stretches)));
+    if(fb>0){const d=(fa-fb)/fb;if(d>.1)return 'Vas mejorando: en tus últimas 3 sesiones te concentras '+Math.round(d*100)+'% más tiempo seguido que en las 3 anteriores.';if(d<-.1)return 'En tus últimas 3 sesiones te distraes más pronto. Prueba bajar un poco la velocidad o leer a otra hora.'}
+  }
+  if(sl.length>=2&&avg(sl)<8*60000)return 'El sueño llega antes de los 8 minutos. Lee sentado, con luz fuerte, y prueba sesiones cortas varias veces al día.';
+  if(sessions.length<3)return 'Con 3 o más sesiones empezarás a ver cómo cambia tu resistencia.';
+  return '';
+}
+
+/* ---------- Lector guiado ---------- */
+let R=null,wake=null;
+function openReader(b){
+  if(R)return;
+  R={b,playing:false,active:0,since:0,startTs:0,ev:[],words:0,timer:null,clock:null,tokens:[],cur:-1,lastTop:-1,slept:false};
+  $('#rBook').textContent=b.title;
+  $('#home').hidden=true;$('#reader').hidden=false;window.scrollTo(0,0);
+  renderText();updateUI();
+  R.clock=setInterval(updateClock,500);updateClock();
+}
+function activeMs(){return R.active+(R.playing?Date.now()-R.since:0)}
+function updateClock(){if(!R)return;$('#rTime').textContent=fmt(activeMs())}
+function updateUI(){
+  $('#icoPlay').hidden=R.playing;$('#icoPause').hidden=!R.playing;
+  $('#bPlay').setAttribute('aria-label',R.playing?'Pausar lectura guiada':'Iniciar lectura guiada');
+  $('#rClock').classList.toggle('on',R.playing);
+  const p=pct(R.b);$('#rProg').style.width=p+'%';$('#rPct').textContent=Math.floor(p)+'% del libro';
+}
+function renderText(){
+  const b=R.b,{p}=b.pos,n=b.paras.length,el=$('#text');
+  if(p>=n){el.innerHTML='<p class="endnote">Terminaste el libro.</p>';R.tokens=[];return}
+  let h='';
+  for(let k=Math.max(0,p-2);k<Math.min(n,p+6);k++){
+    const par=b.paras[k],tag=par.h?'h2':'p';
+    if(k<p)h+='<'+tag+' class="past">'+esc(par.t)+'</'+tag+'>';
+    else if(k>p)h+='<'+tag+' class="ahead">'+esc(par.t)+'</'+tag+'>';
+    else h+='<'+tag+' class="live" id="live">'+par.t.split(/\s+/).filter(Boolean).map((w,i)=>'<span class="w" data-i="'+i+'">'+esc(w)+'</span>').join(' ')+'</'+tag+'>';
+  }
+  if(p+6>=n)h+='<p class="endnote">Fin del libro</p>';
+  el.innerHTML=h;
+  R.tokens=[...el.querySelectorAll('#live .w')];
+  if(b.pos.w>=R.tokens.length)b.pos.w=0;
+  R.cur=-1;R.lastTop=-1;paintWord(true);
+}
+function paintWord(force){
+  const w=R.b.pos.w,T=R.tokens;
+  if(force||R.cur<0||Math.abs(w-R.cur)>1){T.forEach((t,i)=>{t.classList.toggle('done',i<w);t.classList.toggle('cur',i===w)})}
+  else{const o=T[R.cur];if(o){o.classList.remove('cur');o.classList.toggle('done',R.cur<w)}const c=T[w];if(c){c.classList.add('cur');c.classList.remove('done')}}
+  R.cur=w;
+  const cur=T[w];if(!cur)return;
+  const top=cur.offsetTop;
+  if(force||top!==R.lastTop){
+    R.lastTop=top;const r=cur.getBoundingClientRect(),vh=window.innerHeight;
+    if(force||r.top<vh*.2||r.top>vh*.45)window.scrollTo({top:Math.max(0,window.scrollY+r.top-vh*.3),behavior:force||reduced()?'auto':'smooth'});
+  }
+}
+function wordDelay(word,last){
+  let d=60000/settings.wpm;
+  if(/[.!?…]["'»”)\]]*$/.test(word))d*=2.1;else if(/[,;:—]["'»”)\]]*$/.test(word))d*=1.4;
+  if(word.length>9)d*=1.2;if(last)d*=1.4;return d;
+}
+function step(){
+  clearTimeout(R.timer);
+  if(!R.playing)return;
+  const b=R.b,tok=R.tokens[b.pos.w];
+  if(!tok){finishBook();return}
+  const last=b.pos.w>=R.tokens.length-1,me=R;
+  R.timer=setTimeout(()=>{
+    if(R!==me||!R.playing)return;
+    R.words++;
+    if(last){b.pos={p:b.pos.p+1,w:0};dbPut(b);renderText();updateUI();if(b.pos.p>=b.paras.length){finishBook();return}}
+    else{b.pos.w++;paintWord(false)}
+    step();
+  },wordDelay(tok.textContent,last));
+}
+function play(){
+  if(!R||R.playing)return;
+  if(R.b.pos.p>=R.b.paras.length){toast('Ya terminaste este libro');return}
+  if(!R.startTs)R.startTs=Date.now();
+  R.playing=true;R.slept=false;R.since=Date.now();updateUI();paintWord(true);step();
+  try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(w=>{wake=w}).catch(()=>{})}catch(e){}
+}
+function pause(){
+  if(!R||!R.playing)return;
+  R.active+=Date.now()-R.since;R.playing=false;clearTimeout(R.timer);updateUI();updateClock();dbPut(R.b);
+  try{wake&&wake.release()}catch(e){}wake=null;
+}
+function finishBook(){pause();renderText();toast('¡Terminaste el libro!')}
+$('#bPlay').onclick=()=>{if(!R)return;R.playing?pause():play()};
+$('#text').addEventListener('click',e=>{
+  const w=e.target.closest('#live .w');if(!w||!R)return;
+  R.b.pos.w=+w.dataset.i;paintWord(true);if(R.playing)step();
+});
+
+$('#bDistract').onclick=()=>{
+  if(!R)return;
+  if(!R.playing){toast(activeMs()<1000?'Presiona play para empezar a leer':'La lectura ya está en pausa · toca ▶ para seguir');return}
+  const at=activeMs();pause();
+  R.ev.push({t:'dz',at});
+  const b=R.b;let i=Math.min(b.pos.w,R.tokens.length-1);
+  while(i>0&&!/[.!?…]["'»”)\]]*$/.test(R.tokens[i-1].textContent))i--;
+  b.pos.w=Math.max(0,i);paintWord(true);dbPut(b);
+  toast('Distracción a los '+fmt(at)+' · toca ▶ para retomar');
+};
+$('#bSleep').onclick=()=>{
+  if(!R)return;const at=activeMs();
+  if(at<1000){toast('Presiona play para empezar a leer');return}
+  if(R.slept){showSleep(at);return}
+  pause();R.slept=true;R.ev.push({t:'sleep',at});showSleep(at);
+};
+function showSleep(at){
+  const dz=R.ev.filter(e=>e.t==='dz').length;
+  sheet('<div class="sheet-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></div>'+
+    '<p>Leíste antes de que te diera sueño</p><div class="big">'+fmt(at)+'</div>'+
+    '<p>'+nf(R.words)+' palabras · '+dz+' distracci'+(dz===1?'ón':'ones')+' en esta sesión.</p>'+
+    '<div class="row"><button class="btn ghost" type="button" id="sCont">Seguir leyendo</button><button class="btn primary" type="button" id="sEnd">Terminar sesión</button></div>',
+    el=>{el.querySelector('#sCont').onclick=closeSheet;el.querySelector('#sEnd').onclick=()=>{closeSheet();exitReader()}});
+}
+function exitReader(){
+  if(!R)return;pause();clearInterval(R.clock);
+  const dur=R.active,b=R.b;
+  b.lastRead=Date.now();dbPut(b);
+  if(dur>=10000){sessions.push({ts:R.startTs||Date.now()-dur,dur,words:R.words,ev:R.ev,book:b.title});saveSessions();toast('Sesión guardada · '+fmt(dur))}
+  R=null;closeSheet();
+  $('#reader').hidden=true;$('#home').hidden=false;window.scrollTo(0,0);
+  setTab(!$('#viewStats').hidden);
+}
+$('#rBack').onclick=exitReader;
+const SIZES=[1.05,1.2,1.35,1.5];
+function applySize(){if(!SIZES.includes(settings.size))settings.size=1.2;document.documentElement.style.setProperty('--read-size',settings.size+'rem')}
+applySize();
+$('#rSize').onclick=()=>{settings.size=SIZES[(SIZES.indexOf(settings.size)+1)%SIZES.length];saveSettings();applySize();if(R)paintWord(true)};
+const wpmIn=$('#wpm');
+function setWpm(v){settings.wpm=Math.max(100,Math.min(600,Math.round(v/10)*10));wpmIn.value=settings.wpm;$('#wpmOut').textContent=settings.wpm+' ppm';saveSettings()}
+setWpm(settings.wpm);
+wpmIn.addEventListener('input',()=>setWpm(+wpmIn.value));
+$('#spDown').onclick=()=>setWpm(settings.wpm-10);
+$('#spUp').onclick=()=>setWpm(settings.wpm+10);
+document.addEventListener('keydown',e=>{
+  if(!R||$('.scrim')||e.target===wpmIn||e.target.tagName==='BUTTON'&&e.key===' ')return;
+  if(e.key===' '){e.preventDefault();R.playing?pause():play()}
+  else if(e.key==='d'||e.key==='D')$('#bDistract').click();
+  else if(e.key==='s'||e.key==='S')$('#bSleep').click();
+});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&R&&R.playing)pause()});
+
+/* ---------- Intro ---------- */
+let slide=0,demoIv=null;
+const DEMO='La marca avanza palabra por palabra y tus ojos solo tienen que seguirla, sin perder el hilo.'.split(' ');
+function showIntro(){
+  slide=0;$('#intro').hidden=false;document.body.style.overflow='hidden';
+  $('#demo').innerHTML=DEMO.map(w=>'<span>'+esc(w)+'</span>').join(' ');
+  paintSlide();$('#iNext').focus({preventScroll:true});
+}
+function paintSlide(){
+  [...document.querySelectorAll('.slide')].forEach((s,i)=>{s.classList.toggle('on',i===slide);s.classList.toggle('off',i<slide)});
+  [...document.querySelectorAll('#dots i')].forEach((d,i)=>d.classList.toggle('on',i===slide));
+  $('#iNext').textContent=slide===2?'Empezar':'Siguiente';
+  clearInterval(demoIv);
+  if(slide===1){
+    const sp=[...document.querySelectorAll('#demo span')];let k=0;
+    const paint=()=>{sp.forEach((s,i)=>{s.className=i<k?'done':i===k?'cur':''});k=(k+1)%(sp.length+3)};
+    paint();if(!reduced())demoIv=setInterval(paint,330);
+  }
+}
+function closeIntro(){clearInterval(demoIv);$('#intro').hidden=true;document.body.style.overflow='';settings.seenIntro=true;saveSettings()}
+$('#iNext').onclick=()=>{if(slide<2){slide++;paintSlide()}else closeIntro()};
+$('#iSkip').onclick=closeIntro;
+$('#showIntro').onclick=showIntro;
+let tx=null;
+$('#slides').addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+$('#slides').addEventListener('touchend',e=>{if(tx==null)return;const dx=e.changedTouches[0].clientX-tx;tx=null;if(dx<-50&&slide<2){slide++;paintSlide()}else if(dx>50&&slide>0){slide--;paintSlide()}});
+document.addEventListener('keydown',e=>{if($('#intro').hidden)return;if(e.key==='ArrowRight'&&slide<2){slide++;paintSlide()}else if(e.key==='ArrowLeft'&&slide>0){slide--;paintSlide()}else if(e.key==='Escape')closeIntro()});
+
+/* ---------- Hojas ---------- */
+function sheet(html,mount){
+  const host=$('#sheetHost');
+  host.innerHTML='<div class="scrim"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>';
+  const scrim=host.firstChild;
+  scrim.addEventListener('click',e=>{if(e.target===scrim&&!scrim.dataset.lock)closeSheet()});
+  mount&&mount(scrim.firstChild,scrim);
+  const f=scrim.querySelector('button:not([hidden])');f&&f.focus({preventScroll:true});
+}
+function closeSheet(){$('#sheetHost').innerHTML=''}
+let toastT;
+function toast(m){let t=$('.toast');if(!t){t=document.createElement('div');t.className='toast';t.setAttribute('role','status');document.body.appendChild(t)}t.textContent=m;clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),2600)}
+
+/* ---------- Importar PDF / EPUB ---------- */
+function loadOne(src){
+  loadOne.c=loadOne.c||{};if(loadOne.c[src])return loadOne.c[src];
+  return loadOne.c[src]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>res(src);s.onerror=()=>{delete loadOne.c[src];s.remove();rej(new Error('fail'))};document.head.appendChild(s)});
+}
+async function loadScript(srcs){
+  for(const src of srcs){try{return await loadOne(src)}catch(e){}}
+  throw new Error(SERVED?'No se pudo cargar el lector de archivos. Abre la app una vez con internet.':'No se pudo cargar el lector de archivos. Abriste Vela como archivo: súbela a un hosting (GitHub Pages) o conéctate a internet.');
+}
+async function parsePDF(file,prog){
+  const from=await loadScript(SERVED?PDFJS:PDFJS.slice().reverse());
+  const lib=window.pdfjsLib;
+  if(SERVED&&from===PDFJS[0])lib.GlobalWorkerOptions.workerSrc=PDFW[0];
+  else{const w=await loadScript(SERVED?PDFW:PDFW.slice().reverse());lib.GlobalWorkerOptions.workerSrc=w}
+  let doc;
+  try{doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise}
+  catch(e){throw new Error(e&&e.name==='PasswordException'?'Este PDF tiene contraseña. Quítasela e inténtalo de nuevo.':'No pude abrir este PDF. Puede estar dañado.')}
+  let info={};try{info=(await doc.getMetadata()).info||{}}catch(e){}
+  const paras=[];let cur='',lastHead=false,carry=false;
+  const flush=()=>{const t=cur.replace(/\s+/g,' ').trim();if(t)paras.push({t,h:0,w:wc(t)});cur='';lastHead=false};
+  const append=s=>{if(!cur)cur=s;else if(/[A-Za-zÀ-ÿ]-$/.test(cur))cur=cur.slice(0,-1)+s;else cur+=' '+s;if(wc(cur)>300&&/[.!?…»"”]$/.test(cur))flush()};
+  for(let p=1;p<=doc.numPages;p++){
+    prog('Leyendo página '+p+' de '+doc.numPages);
+    const tc=await (await doc.getPage(p)).getTextContent();
+    const lines=[];let line=null;
+    for(const it of tc.items){
+      if(typeof it.str!=='string')continue;
+      const t=it.transform,y=t[5],x=t[4],h=Math.hypot(t[2],t[3])||10;
+      if(!it.str.trim()){if(line)line.s+=' ';continue}
+      if(!line||Math.abs(y-line.y)>h*.5){line={y,x,h,s:'',end:x};lines.push(line)}
+      else if(x-line.end>h*.15&&!/\s$/.test(line.s))line.s+=' ';
+      line.s+=it.str;line.end=x+(it.width||0);line.h=Math.max(line.h,h);
+    }
+    const L=lines.map(l=>Object.assign(l,{s:l.s.replace(/\s+/g,' ').trim()})).filter(l=>l.s&&!/^[-–—\s]*\d{1,4}[-–—\s]*$/.test(l.s));
+    if(!L.length)continue;
+    const hs=L.map(l=>l.h).sort((a,b)=>a-b),mh=hs[hs.length>>1];
+    const gaps=[];for(let i=1;i<L.length;i++){const g=L[i-1].y-L[i].y;if(g>0)gaps.push(g)}
+    gaps.sort((a,b)=>a-b);const mg=gaps.length?gaps[gaps.length>>1]:mh*1.3;
+    const maxLen=Math.max(...L.map(l=>l.s.length)),minX=Math.min(...L.map(l=>l.x));
+    L.forEach((l,i)=>{
+      if(l.h>mh*1.3&&l.s.length<120){
+        if(lastHead&&paras.length){const ph=paras[paras.length-1];ph.t+=' '+l.s;ph.w=wc(ph.t);return}
+        flush();paras.push({t:l.s,h:1,w:wc(l.s)});lastHead=true;return;
+      }
+      let brk=false;
+      if(i>0){const pv=L[i-1],g=pv.y-l.y;if(g<0||g>mg*1.45)brk=true;if(/[.!?…»"”:]$/.test(pv.s)&&pv.s.length<maxLen*.7)brk=true}
+      else if(carry)brk=true;
+      if(l.x>minX+mh*.8&&maxLen>40)brk=true;
+      if(brk)flush();append(l.s);lastHead=false;
+    });
+    const ll=L[L.length-1];carry=/[.!?…»"”:]$/.test(ll.s)&&ll.s.length<maxLen*.7;
+  }
+  flush();
+  if(!paras.some(p=>!p.h))throw new Error('Este PDF no tiene texto seleccionable (parece escaneado). Prueba con otra versión o con un EPUB.');
+  return {title:(info.Title||'').trim(),author:(info.Author||'').trim(),paras};
+}
+function resolvePath(base,href){const out=[];let h=href.split('#')[0];try{h=decodeURIComponent(h)}catch(e){}(base+h).split('/').forEach(s=>{if(s==='..')out.pop();else if(s&&s!=='.')out.push(s)});return out.join('/')}
+async function parseEPUB(file,prog){
+  await loadScript(SERVED?JSZIP:JSZIP.slice().reverse());
+  let zip;try{zip=await window.JSZip.loadAsync(file)}catch(e){throw new Error('Este EPUB está dañado o no es válido.')}
+  const cf=zip.file('META-INF/container.xml');if(!cf)throw new Error('Este EPUB está dañado o no es válido.');
+  const rf=new DOMParser().parseFromString(await cf.async('string'),'application/xml').getElementsByTagNameNS('*','rootfile')[0];
+  if(!rf)throw new Error('No encontré el índice del EPUB.');
+  const opfPath=rf.getAttribute('full-path'),base=opfPath.includes('/')?opfPath.slice(0,opfPath.lastIndexOf('/')+1):'';
+  const of=zip.file(opfPath);if(!of)throw new Error('No encontré el índice del EPUB.');
+  const opf=new DOMParser().parseFromString(await of.async('string'),'application/xml');
+  if(opf.getElementsByTagName('encryption').length||zip.file('META-INF/encryption.xml'))throw new Error('Este EPUB tiene protección DRM y no se puede abrir.');
+  const meta=n=>{const e=opf.getElementsByTagNameNS('*',n)[0];return e?e.textContent.trim():''};
+  const man={};for(const it of opf.getElementsByTagNameNS('*','item'))man[it.getAttribute('id')]=it.getAttribute('href');
+  const spine=[...opf.getElementsByTagNameNS('*','itemref')].map(r=>man[r.getAttribute('idref')]).filter(Boolean);
+  const paras=[],sel='h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,dt,dd';
+  for(let k=0;k<spine.length;k++){
+    prog('Leyendo sección '+(k+1)+' de '+spine.length);
+    const f=zip.file(resolvePath(base,spine[k]));if(!f)continue;
+    const d=new DOMParser().parseFromString(await f.async('string'),'text/html');if(!d.body)continue;
+    d.body.querySelectorAll('script,style').forEach(x=>x.remove());
+    let any=false;
+    d.body.querySelectorAll(sel).forEach(el=>{if(el.querySelector(sel))return;const t=el.textContent.replace(/\s+/g,' ').trim();if(!t)return;any=true;paras.push({t,h:/^H\d$/i.test(el.tagName)?1:0,w:wc(t)})});
+    if(!any)d.body.textContent.split(/\n\s*\n/).map(t=>t.replace(/\s+/g,' ').trim()).filter(Boolean).forEach(t=>paras.push({t,h:0,w:wc(t)}));
+  }
+  if(!paras.some(p=>!p.h))throw new Error('No encontré texto en este EPUB.');
+  return {title:meta('title'),author:meta('creator'),paras};
+}
+$('#file').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importFile(f)});
+if('launchQueue' in window){try{window.launchQueue.setConsumer(async p=>{if(p&&p.files&&p.files.length){const f=await p.files[0].getFile();if($('#intro'))closeIntroIfOpen();importFile(f)}})}catch(e){}}
+function closeIntroIfOpen(){const i=$('#intro');if(i&&!i.hidden)$('#iSkip').click()}
+async function importFile(file){
+  const isPdf=/\.pdf$/i.test(file.name)||file.type==='application/pdf',isEpub=/\.epub$/i.test(file.name)||file.type==='application/epub+zip';
+  let box;
+  sheet('<div class="spinner" id="spin"></div><h2>Preparando tu libro</h2><p id="pm">Abriendo '+esc(file.name)+'…</p><p class="err" id="pe" hidden></p><button class="btn ghost" type="button" id="pc" hidden>Cerrar</button>',
+    (el,scrim)=>{scrim.dataset.lock='1';box=el;el.querySelector('#pc').onclick=closeSheet});
+  const prog=m=>{const p=box&&box.querySelector('#pm');if(p)p.textContent=m};
+  try{
+    if(!isPdf&&!isEpub)throw new Error('Solo puedo abrir archivos PDF o EPUB.');
+    const res=isPdf?await parsePDF(file,prog):await parseEPUB(file,prog);
+    await booted;
+    const b={id:'b'+Date.now(),title:res.title||file.name.replace(/\.(pdf|epub)$/i,''),author:res.author,paras:res.paras,pos:{p:0,w:0},added:Date.now()};
+    books.unshift(b);dbPut(b);closeSheet();setTab(false);toast('Listo: '+nf(totalWords(b))+' palabras');
+  }catch(err){
+    if(!box||!box.isConnected)return;const pe=box.querySelector('#pe');pe.hidden=false;pe.textContent=err.message||'No pude leer el archivo.';
+    box.querySelector('#pm').hidden=true;box.querySelector('#spin').hidden=true;box.querySelector('#pc').hidden=false;delete box.parentNode.dataset.lock;
+  }
+}
+
+/* ---------- Arranque ---------- */
+const sample=sampleBook();
+books=settings.hideSample?[]:[sample];
+renderBooks();
+if(!settings.seenIntro)showIntro();
+const booted=(async()=>{
+  await openDB();
+  const stored=(await dbAll()).filter(b=>b&&Array.isArray(b.paras)).sort((a,b)=>b.added-a.added);
+  stored.forEach(b=>{if(!b.pos||typeof b.pos!=='object')b.pos={p:0,w:0}});
+  const saved=stored.find(b=>b.id==='muestra');
+  if(saved&&!R){sample.pos=saved.pos;sample.lastRead=saved.lastRead}
+  const own=stored.filter(b=>b.id!=='muestra');
+  books=own.concat(settings.hideSample?[]:[sample]);
+  if(!saved&&!settings.hideSample)dbPut(sample);
+  if(!R)setTab(!$('#viewStats').hidden);
+})();
+})();
+</script>
+<script>
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+(function(){let ev=null;const b=document.getElementById('installBtn');
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();ev=e;b.hidden=false});
+b.addEventListener('click',async()=>{if(!ev)return;ev.prompt();try{await ev.userChoice}catch(e){}ev=null;b.hidden=true});
+window.addEventListener('appinstalled',()=>{b.hidden=true});})();
+</script>
+</body>
+</html>
