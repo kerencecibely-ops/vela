@@ -1,6 +1,6 @@
 // Vela · service worker
 // Sube el número de VERSION cada vez que cambies archivos, para que los celulares descarguen la versión nueva.
-const VERSION = 'vela-v2';
+const VERSION = 'vela-v7';
 const ASSETS = [
   './',
   './index.html',
